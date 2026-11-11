@@ -55,6 +55,24 @@ export interface Transaction {
   createdAt: string;
 }
 
+export type LoanType = 'given' | 'taken'; // given = someone owes me, taken = I owe someone
+
+export interface Loan {
+  id: string;
+  userId: string;
+  type: LoanType;
+  personName: string;
+  amount: number;
+  currency: CurrencyCode;
+  walletId: string; // wallet from which given or to which received
+  date: string; // YYYY-MM-DD
+  dueDate?: string;
+  notes?: string;
+  status: 'active' | 'settled';
+  settledDate?: string;
+  createdAt: string;
+}
+
 export type RecurringFrequency = 'monthly' | 'weekly' | 'casual';
 
 export interface RecurringRule {

@@ -8,7 +8,7 @@ import {
   Banknote,
   CreditCard,
   Edit2,
-  RotateCcw,
+  HandCoins,
 } from 'lucide-react';
 import { Wallet, CurrencyCode } from '../types/expense.ts';
 import { formatCurrency, convertCurrency } from '../utils/calculations.ts';
@@ -18,8 +18,8 @@ interface WalletOverviewProps {
   activeCurrency: CurrencyCode;
   onOpenTransferModal: () => void;
   onOpenAddWalletModal: () => void;
+  onOpenLoanModal: () => void;
   onEditWallet: (wallet: Wallet) => void;
-  onResetAllWalletsToZero: () => void;
 }
 
 export const WalletOverview: React.FC<WalletOverviewProps> = ({
@@ -27,8 +27,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   activeCurrency,
   onOpenTransferModal,
   onOpenAddWalletModal,
+  onOpenLoanModal,
   onEditWallet,
-  onResetAllWalletsToZero,
 }) => {
   const getWalletIcon = (type: Wallet['type']) => {
     switch (type) {
@@ -74,12 +74,11 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={onResetAllWalletsToZero}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-850 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs font-semibold border border-amber-500/30 transition-colors cursor-pointer"
-            title="Reset all wallet balances to 0 BDT"
+            onClick={onOpenLoanModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Zero All (0 ৳)
+            <HandCoins className="w-3.5 h-3.5 text-amber-400" />
+            Loan Management
           </button>
           <button
             onClick={onOpenTransferModal}

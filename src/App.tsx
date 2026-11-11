@@ -8,6 +8,7 @@ import {
   RecurringRule,
   TransactionType,
   RecurringFrequency,
+  Loan,
 } from './types/expense.ts';
 import {
   calculateTotals,
@@ -43,6 +44,7 @@ import { WalletTransferModal } from './components/WalletTransferModal.tsx';
 import { AddWalletModal } from './components/AddWalletModal.tsx';
 import { EditWalletModal } from './components/EditWalletModal.tsx';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal.tsx';
+import { LoanModal } from './components/LoanModal.tsx';
 import { PinLockScreen } from './components/PinLockScreen.tsx';
 import { CheckCircle2, RotateCcw, Cloud, ShieldCheck, Shield } from 'lucide-react';
 
@@ -60,6 +62,7 @@ export default function App() {
   const [initialWallets, setInitialWallets] = useState<Wallet[]>(INITIAL_WALLETS);
   const [budgets, setBudgets] = useState<Budget[]>(INITIAL_BUDGETS);
   const [recurringRules, setRecurringRules] = useState<RecurringRule[]>(INITIAL_RECURRING);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [activeCurrency, setActiveCurrency] = useState<CurrencyCode>('BDT');
 
   // Month selector
@@ -90,6 +93,7 @@ export default function App() {
   const [isAddWalletModalOpen, setIsAddWalletModalOpen] = useState(false);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
 
   // 5. Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -125,6 +129,7 @@ export default function App() {
           onWallets: (w) => setInitialWallets(w),
           onBudgets: (b) => setBudgets(b),
           onRecurring: (r) => setRecurringRules(r),
+          onLoans: (l) => setLoans(l),
           onCurrency: (cur) => setActiveCurrency(cur),
         });
 
@@ -440,12 +445,36 @@ export default function App() {
     showToast('Wallet removed from Cloud Firestore');
   };
 
-  const handleResetAllWalletsToZero = async () => {
+  const handleAddLoan = async (loanData: Omit<Loan, 'id' | 'createdAt' | 'userId'>) => {
     if (!userId) return;
-    if (confirm('Set all wallet balances to 0 BDT and clear transactions for a clean start?')) {
-      await firestoreStorage.resetAllWalletsToZero(userId);
-      showToast('All wallets reset to 0 BDT. You can now log your real transactions!');
+    const newLoan: Loan = {
+      ...loanData,
+      id: `loan-${Date.now()}`,
+      userId,
+      createdAt: new Date().toISOString(),
+    };
+    await firestoreStorage.saveLoan(userId, newLoan);
+    showToast(`Loan record for "${newLoan.personName}" saved in Cloud Firestore`);
+  };
+
+  const handleSettleLoan = async (loanId: string) => {
+    if (!userId) return;
+    const loan = loans.find((l) => l.id === loanId);
+    if (loan) {
+      const updated: Loan = {
+        ...loan,
+        status: 'settled',
+        settledDate: new Date().toISOString().split('T')[0],
+      };
+      await firestoreStorage.saveLoan(userId, updated);
+      showToast(`Loan with "${updated.personName}" marked as settled!`);
     }
+  };
+
+  const handleDeleteLoan = async (loanId: string) => {
+    if (!userId) return;
+    await firestoreStorage.deleteLoan(userId, loanId);
+    showToast('Loan record deleted from Firestore');
   };
 
   const handleCurrencyChange = async (code: CurrencyCode) => {
@@ -592,8 +621,8 @@ export default function App() {
           activeCurrency={activeCurrency}
           onOpenTransferModal={() => setIsTransferModalOpen(true)}
           onOpenAddWalletModal={() => setIsAddWalletModalOpen(true)}
+          onOpenLoanModal={() => setIsLoanModalOpen(true)}
           onEditWallet={(w) => setEditingWallet(w)}
-          onResetAllWalletsToZero={handleResetAllWalletsToZero}
         />
 
         {/* 3. Visual Charts: Spending by Category & Budget Guardrails */}
@@ -732,6 +761,17 @@ export default function App() {
         userId={userId}
         pinConfig={pinConfig}
         onPinConfigUpdated={(newCfg) => setPinConfig(newCfg)}
+      />
+
+      <LoanModal
+        isOpen={isLoanModalOpen}
+        onClose={() => setIsLoanModalOpen(false)}
+        loans={loans}
+        wallets={wallets}
+        currency={activeCurrency}
+        onAddLoan={handleAddLoan}
+        onSettleLoan={handleSettleLoan}
+        onDeleteLoan={handleDeleteLoan}
       />
     </div>
   );
