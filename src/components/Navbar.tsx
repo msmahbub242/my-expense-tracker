@@ -6,6 +6,8 @@ import {
   Calendar,
   Layers,
   Repeat,
+  Lock,
+  Cloud,
 } from 'lucide-react';
 import { CurrencyCode } from '../types/expense.ts';
 import { SUPPORTED_CURRENCIES } from '../utils/calculations.ts';
@@ -18,8 +20,10 @@ interface NavbarProps {
   onOpenBudgetsModal: () => void;
   onOpenRecurringModal: () => void;
   onExportCsv: () => void;
+  onLockApp: () => void;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
+  isCloudSynced?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,8 +34,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenBudgetsModal,
   onOpenRecurringModal,
   onExportCsv,
+  onLockApp,
   selectedMonth,
   onMonthChange,
+  isCloudSynced = true,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 text-slate-100">
@@ -109,11 +115,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Export CSV button */}
             <button
               onClick={onExportCsv}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Export Transactions to CSV"
             >
               <Download className="w-4 h-4 text-emerald-400" />
               <span className="hidden sm:inline">Export CSV</span>
+            </button>
+
+            {/* Lock App CTA */}
+            <button
+              onClick={onLockApp}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 hover:border-amber-500/40 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Lock App with PIN Code"
+            >
+              <Lock className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Lock</span>
             </button>
 
             {/* Add Transaction CTA */}
@@ -149,6 +165,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Repeat className="w-3 h-3 text-purple-400" />
             Recurring
+          </button>
+          <button
+            onClick={onLockApp}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0 cursor-pointer"
+          >
+            <Lock className="w-3 h-3" />
+            Lock App
           </button>
         </div>
       </div>

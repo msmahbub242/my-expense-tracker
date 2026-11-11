@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "An income or expense transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["expense", "income"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "walletId": { "type": "string" },
+        "date": { "type": "string" },
+        "notes": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
+        "recurringId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "type", "amount", "currency", "categoryId", "walletId", "date"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Spending or earning category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "type": { "type": "string", "enum": ["expense", "income", "both"] },
+        "isCustom": { "type": "boolean" }
+      },
+      "required": ["name", "icon", "color", "type"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "Financial account or payment wallet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["cash", "bank", "mobile_banking", "credit_card"] },
+        "balance": { "type": "number" },
+        "currency": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" },
+        "accountNumber": { "type": "string" }
+      },
+      "required": ["name", "type", "balance", "currency"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly category spending limit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "limitAmount": { "type": "number" },
+        "currency": { "type": "string" },
+        "monthYear": { "type": "string" }
+      },
+      "required": ["categoryId", "limitAmount", "monthYear"]
+    },
+    "RecurringRule": {
+      "title": "RecurringRule",
+      "description": "Automated recurring fixed expense or income schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["expense", "income"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "walletId": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["monthly", "weekly"] },
+        "dayOfMonth": { "type": "number" },
+        "nextDueDate": { "type": "string" },
+        "active": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "required": ["title", "type", "amount", "categoryId", "walletId", "frequency", "nextDueDate"]
+    },
+    "SecurityPin": {
+      "title": "SecurityPin",
+      "description": "User security passcode verification config",
+      "type": "object",
+      "properties": {
+        "pinHash": { "type": "string" },
+        "pinLength": { "type": "number" },
+        "salt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["pinHash", "pinLength"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "App preferences and active currency",
+      "type": "object",
+      "properties": {
+        "activeCurrency": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User transactions ledger"
+    },
+    "/users/{userId}/categories/{catId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "User custom and active categories"
+    },
+    "/users/{userId}/wallets/{walletId}": {
+      "schema": { "$ref": "#/entities/Wallet" },
+      "description": "User payment wallets and balances"
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/Budget" },
+      "description": "Monthly category budget limits"
+    },
+    "/users/{userId}/recurring/{ruleId}": {
+      "schema": { "$ref": "#/entities/RecurringRule" },
+      "description": "Recurring transaction rules and schedules"
+    },
+    "/users/{userId}/security/pin": {
+      "schema": { "$ref": "#/entities/SecurityPin" },
+      "description": "User PIN protection credentials"
+    },
+    "/users/{userId}/settings/preferences": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User app preferences"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "Personal Expense Tracker",
-  "description": "A comprehensive personal expense and income tracking web application with multi-wallet management, visual charts, budget alerts, recurring transactions, and CSV export.",
+  "description": "A comprehensive personal expense and income tracking web application with Google Cloud Firestore database persistence, multi-wallet management, 5/6-digit PIN code protection, visual charts, budget alerts, and recurring transactions.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

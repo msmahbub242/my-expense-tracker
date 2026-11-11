@@ -20,7 +20,16 @@ import {
   generateMonthlySummary,
   convertCurrency,
 } from './utils/calculations.ts';
-import { storageService } from './services/storage.ts';
+import { getOrCreateUserId, validateFirestoreConnection } from './services/firebase.ts';
+import { firestoreStorage } from './services/firestoreStorage.ts';
+import { getPinConfig, PinData } from './services/pinService.ts';
+import {
+  INITIAL_CATEGORIES,
+  INITIAL_WALLETS,
+  INITIAL_BUDGETS,
+  INITIAL_RECURRING,
+  INITIAL_TRANSACTIONS,
+} from './services/storage.ts';
 import { Navbar } from './components/Navbar.tsx';
 import { BalanceCards } from './components/BalanceCards.tsx';
 import { WalletOverview } from './components/WalletOverview.tsx';
@@ -32,30 +41,26 @@ import { CategoryModal } from './components/CategoryModal.tsx';
 import { RecurringModal } from './components/RecurringModal.tsx';
 import { WalletTransferModal } from './components/WalletTransferModal.tsx';
 import { AddWalletModal } from './components/AddWalletModal.tsx';
-import { CheckCircle2, RotateCcw } from 'lucide-react';
+import { PinLockScreen } from './components/PinLockScreen.tsx';
+import { CheckCircle2, RotateCcw, Cloud, ShieldCheck } from 'lucide-react';
 
 export default function App() {
-  // 1. Core State
-  const [transactions, setTransactions] = useState<Transaction[]>(() =>
-    storageService.getTransactions()
-  );
-  const [categories, setCategories] = useState<Category[]>(() =>
-    storageService.getCategories()
-  );
-  const [initialWallets, setInitialWallets] = useState<Wallet[]>(() =>
-    storageService.getWallets()
-  );
-  const [budgets, setBudgets] = useState<Budget[]>(() =>
-    storageService.getBudgets()
-  );
-  const [recurringRules, setRecurringRules] = useState<RecurringRule[]>(() =>
-    storageService.getRecurring()
-  );
-  const [activeCurrency, setActiveCurrency] = useState<CurrencyCode>(() =>
-    storageService.getActiveCurrency()
-  );
+  // 1. Firebase & PIN Security State
+  const [userId, setUserId] = useState<string>('');
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [pinConfig, setPinConfig] = useState<PinData | null>(null);
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
 
-  // Month selector (defaults to current system month "YYYY-MM")
+  // 2. Data State
+  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+  const [initialWallets, setInitialWallets] = useState<Wallet[]>(INITIAL_WALLETS);
+  const [budgets, setBudgets] = useState<Budget[]>(INITIAL_BUDGETS);
+  const [recurringRules, setRecurringRules] = useState<RecurringRule[]>(INITIAL_RECURRING);
+  const [activeCurrency, setActiveCurrency] = useState<CurrencyCode>('BDT');
+
+  // Month selector
   const currentMonthStr = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -65,7 +70,7 @@ export default function App() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
 
-  // 2. Search & Filter State
+  // 3. Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
   const [selectedWalletFilter, setSelectedWalletFilter] = useState('all');
@@ -73,7 +78,7 @@ export default function App() {
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
 
-  // 3. Modal Dialog States
+  // 4. Modal Dialog States
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
@@ -82,7 +87,7 @@ export default function App() {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isAddWalletModalOpen, setIsAddWalletModalOpen] = useState(false);
 
-  // 4. Toast Notification
+  // 5. Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -90,32 +95,52 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Sync state changes with storage
+  // Initialize Firebase User & Real-Time Firestore Sync
   useEffect(() => {
-    storageService.saveTransactions(transactions);
-  }, [transactions]);
+    let unsubscribeSync: (() => void) | undefined;
 
-  useEffect(() => {
-    storageService.saveCategories(categories);
-  }, [categories]);
+    async function initFirebase() {
+      try {
+        setIsAuthLoading(true);
+        const uid = getOrCreateUserId();
+        setUserId(uid);
 
-  useEffect(() => {
-    storageService.saveWallets(initialWallets);
-  }, [initialWallets]);
+        await validateFirestoreConnection();
 
-  useEffect(() => {
-    storageService.saveBudgets(budgets);
-  }, [budgets]);
+        // Check if user has a configured PIN in Firestore
+        const pinData = await getPinConfig(uid);
+        setPinConfig(pinData);
 
-  useEffect(() => {
-    storageService.saveRecurring(recurringRules);
-  }, [recurringRules]);
+        // Seed initial collections in Firestore if empty
+        await firestoreStorage.initializeUserCollectionsIfEmpty(uid);
 
-  useEffect(() => {
-    storageService.saveActiveCurrency(activeCurrency);
-  }, [activeCurrency]);
+        // Subscribe to real-time updates from Firestore
+        unsubscribeSync = firestoreStorage.subscribeToAllUserData(uid, {
+          onTransactions: (txs) => setTransactions(txs),
+          onCategories: (cats) => setCategories(cats),
+          onWallets: (w) => setInitialWallets(w),
+          onBudgets: (b) => setBudgets(b),
+          onRecurring: (r) => setRecurringRules(r),
+          onCurrency: (cur) => setActiveCurrency(cur),
+        });
 
-  // Dynamic wallet balances (calculated from initial balance plus income/expense deltas)
+        setIsCloudSynced(true);
+      } catch (err) {
+        console.error('Firebase initialization error:', err);
+        showToast('Connecting to Firebase...');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    }
+
+    initFirebase();
+
+    return () => {
+      if (unsubscribeSync) unsubscribeSync();
+    };
+  }, []);
+
+  // Dynamic wallet balances
   const wallets = useMemo(() => {
     return recalculateWalletBalances(initialWallets, transactions);
   }, [initialWallets, transactions]);
@@ -125,7 +150,7 @@ export default function App() {
     return transactions.filter((tx) => tx.date.startsWith(selectedMonth));
   }, [transactions, selectedMonth]);
 
-  // Totals for the selected month
+  // Totals for selected month
   const monthTotals = useMemo(() => {
     return calculateTotals(monthTransactions, activeCurrency);
   }, [monthTransactions, activeCurrency]);
@@ -196,8 +221,8 @@ export default function App() {
     return recurringRules.filter((r) => r.active && r.nextDueDate <= todayStr).length;
   }, [recurringRules, todayStr]);
 
-  // Handlers
-  const handleSaveTransaction = (txData: {
+  // Handlers synced with Firebase
+  const handleSaveTransaction = async (txData: {
     type: TransactionType;
     amount: number;
     currency: CurrencyCode;
@@ -208,25 +233,22 @@ export default function App() {
     isRecurring: boolean;
     recurringFrequency?: RecurringFrequency;
   }) => {
+    if (!userId) return;
+
     if (editingTransaction) {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === editingTransaction.id
-            ? {
-                ...t,
-                type: txData.type,
-                amount: txData.amount,
-                currency: txData.currency,
-                categoryId: txData.categoryId,
-                walletId: txData.walletId,
-                date: txData.date,
-                notes: txData.notes,
-                isRecurring: txData.isRecurring,
-              }
-            : t
-        )
-      );
-      showToast('Transaction updated successfully');
+      const updatedTx: Transaction = {
+        ...editingTransaction,
+        type: txData.type,
+        amount: txData.amount,
+        currency: txData.currency,
+        categoryId: txData.categoryId,
+        walletId: txData.walletId,
+        date: txData.date,
+        notes: txData.notes,
+        isRecurring: txData.isRecurring,
+      };
+      await firestoreStorage.saveTransaction(userId, updatedTx);
+      showToast('Transaction updated in Cloud Firestore');
       setEditingTransaction(null);
     } else {
       const newTx: Transaction = {
@@ -241,9 +263,8 @@ export default function App() {
         isRecurring: txData.isRecurring,
         createdAt: new Date().toISOString(),
       };
-      setTransactions((prev) => [newTx, ...prev]);
+      await firestoreStorage.saveTransaction(userId, newTx);
 
-      // If marked as recurring, also add a recurring rule
       if (txData.isRecurring) {
         const cat = categories.find((c) => c.id === txData.categoryId);
         const nextDate = new Date(txData.date);
@@ -263,17 +284,18 @@ export default function App() {
           active: true,
           notes: txData.notes,
         };
-        setRecurringRules((prev) => [newRule, ...prev]);
-        showToast('Transaction logged and recurring schedule created');
+        await firestoreStorage.saveRecurringRule(userId, newRule);
+        showToast('Saved to Firebase and recurring schedule created');
       } else {
-        showToast(`${txData.type === 'income' ? 'Income' : 'Expense'} entry saved`);
+        showToast(`${txData.type === 'income' ? 'Income' : 'Expense'} saved to Firebase`);
       }
     }
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
-    showToast('Transaction deleted');
+  const handleDeleteTransaction = async (id: string) => {
+    if (!userId) return;
+    await firestoreStorage.deleteTransaction(userId, id);
+    showToast('Transaction deleted from Cloud Firestore');
   };
 
   const handleEditTransaction = (tx: Transaction) => {
@@ -281,79 +303,94 @@ export default function App() {
     setIsTxModalOpen(true);
   };
 
-  const handleAddCategory = (categoryData: Omit<Category, 'id'>) => {
+  const handleAddCategory = async (categoryData: Omit<Category, 'id'>) => {
+    if (!userId) return;
     const newCat: Category = {
       ...categoryData,
       id: `cat-custom-${Date.now()}`,
     };
-    setCategories((prev) => [...prev, newCat]);
-    showToast(`Added custom category: ${newCat.name}`);
+    await firestoreStorage.saveCategory(userId, newCat);
+    showToast(`Added category: ${newCat.name}`);
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-    showToast('Category deleted');
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!userId) return;
+    await firestoreStorage.deleteCategory(userId, categoryId);
+    showToast('Category deleted from Cloud Firestore');
   };
 
-  const handleSaveBudgets = (updatedBudgets: Budget[]) => {
-    setBudgets(updatedBudgets);
-    showToast('Category budget limits updated');
+  const handleSaveBudgets = async (updatedBudgets: Budget[]) => {
+    if (!userId) return;
+    await firestoreStorage.saveBudgets(userId, updatedBudgets);
+    showToast('Budget limits saved to Cloud Firestore');
   };
 
-  const handleAddRecurringRule = (ruleData: Omit<RecurringRule, 'id'>) => {
+  const handleAddRecurringRule = async (ruleData: Omit<RecurringRule, 'id'>) => {
+    if (!userId) return;
     const newRule: RecurringRule = {
       ...ruleData,
       id: `rec-${Date.now()}`,
     };
-    setRecurringRules((prev) => [...prev, newRule]);
-    showToast(`Recurring schedule "${newRule.title}" created`);
+    await firestoreStorage.saveRecurringRule(userId, newRule);
+    showToast(`Recurring schedule "${newRule.title}" created in Firebase`);
   };
 
-  const handleToggleRecurringRule = (ruleId: string) => {
-    setRecurringRules((prev) =>
-      prev.map((r) => (r.id === ruleId ? { ...r, active: !r.active } : r))
-    );
+  const handleToggleRecurringRule = async (ruleId: string) => {
+    if (!userId) return;
+    const rule = recurringRules.find((r) => r.id === ruleId);
+    if (rule) {
+      const updated = { ...rule, active: !rule.active };
+      await firestoreStorage.saveRecurringRule(userId, updated);
+    }
   };
 
-  const handleDeleteRecurringRule = (ruleId: string) => {
-    setRecurringRules((prev) => prev.filter((r) => r.id !== ruleId));
-    showToast('Recurring schedule removed');
+  const handleDeleteRecurringRule = async (ruleId: string) => {
+    if (!userId) return;
+    await firestoreStorage.deleteRecurringRule(userId, ruleId);
+    showToast('Recurring schedule removed from Cloud Firestore');
   };
 
-  const handleProcessDueRecurring = () => {
+  const handleProcessDueRecurring = async () => {
+    if (!userId) return;
     const result = processRecurringRules(recurringRules, todayStr);
     if (result.dueTransactions.length === 0) {
       showToast('No recurring transactions are due right now.');
       return;
     }
 
-    const createdTxs: Transaction[] = result.dueTransactions.map((item, idx) => ({
-      ...item,
-      id: `tx-rec-${Date.now()}-${idx}`,
-      createdAt: new Date().toISOString(),
-    }));
+    for (let idx = 0; idx < result.dueTransactions.length; idx++) {
+      const item = result.dueTransactions[idx];
+      const createdTx: Transaction = {
+        ...item,
+        id: `tx-rec-${Date.now()}-${idx}`,
+        createdAt: new Date().toISOString(),
+      };
+      await firestoreStorage.saveTransaction(userId, createdTx);
+    }
 
-    setTransactions((prev) => [...createdTxs, ...prev]);
-    setRecurringRules(result.updatedRules);
-    showToast(`Logged ${createdTxs.length} automated recurring transaction(s)!`);
+    for (const rule of result.updatedRules) {
+      await firestoreStorage.saveRecurringRule(userId, rule);
+    }
+
+    showToast(`Logged ${result.dueTransactions.length} recurring item(s) to Firebase!`);
   };
 
-  const handleWalletTransfer = (
+  const handleWalletTransfer = async (
     fromWalletId: string,
     toWalletId: string,
     amount: number,
     note: string
   ) => {
+    if (!userId) return;
     const fromW = wallets.find((w) => w.id === fromWalletId);
     const toW = wallets.find((w) => w.id === toWalletId);
 
-    // Create a paired transaction (transfer outflow from source, transfer inflow to destination)
     const outTx: Transaction = {
       id: `tx-tf-out-${Date.now()}`,
       type: 'expense',
       amount,
       currency: activeCurrency,
-      categoryId: 'cat-bills', // or internal transfer
+      categoryId: 'cat-bills',
       walletId: fromWalletId,
       date: todayStr,
       notes: `Transfer to ${toW?.name || 'Wallet'}: ${note}`.trim(),
@@ -372,17 +409,26 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
 
-    setTransactions((prev) => [outTx, inTx, ...prev]);
-    showToast(`Transferred ${amount} ${activeCurrency} from ${fromW?.name} to ${toW?.name}`);
+    await firestoreStorage.saveTransaction(userId, outTx);
+    await firestoreStorage.saveTransaction(userId, inTx);
+    showToast(`Transferred ${amount} ${activeCurrency} in Cloud Firestore`);
   };
 
-  const handleAddWallet = (walletData: Omit<Wallet, 'id'>) => {
+  const handleAddWallet = async (walletData: Omit<Wallet, 'id'>) => {
+    if (!userId) return;
     const newWallet: Wallet = {
       ...walletData,
       id: `w-${Date.now()}`,
     };
-    setInitialWallets((prev) => [...prev, newWallet]);
-    showToast(`Account "${newWallet.name}" created`);
+    await firestoreStorage.saveWallet(userId, newWallet);
+    showToast(`Account "${newWallet.name}" created in Firebase`);
+  };
+
+  const handleCurrencyChange = async (code: CurrencyCode) => {
+    setActiveCurrency(code);
+    if (userId) {
+      await firestoreStorage.saveActiveCurrency(userId, code);
+    }
   };
 
   const handleExportCsv = () => {
@@ -407,18 +453,42 @@ export default function App() {
     setEndDateFilter('');
   };
 
-  const handleResetDemoData = () => {
-    if (confirm('Reset application state back to clean default demo data?')) {
-      storageService.resetToDefault();
-      setTransactions(storageService.getTransactions());
-      setCategories(storageService.getCategories());
-      setInitialWallets(storageService.getWallets());
-      setBudgets(storageService.getBudgets());
-      setRecurringRules(storageService.getRecurring());
-      setActiveCurrency(storageService.getActiveCurrency());
-      showToast('Reset to default seed data');
+  const handleResetDemoData = async () => {
+    if (!userId) return;
+    if (confirm('Reset all Firebase Firestore data back to clean defaults?')) {
+      await firestoreStorage.resetUserData(userId);
+      showToast('Reset Firebase data to defaults');
     }
   };
+
+  const handleLockApp = () => {
+    setIsUnlocked(false);
+  };
+
+  // Loading Screen while connecting to Firebase
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100 font-sans">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center animate-pulse mb-4">
+          <Cloud className="w-7 h-7 text-emerald-400" />
+        </div>
+        <h3 className="text-base font-bold text-white">Connecting to Google Cloud Firestore</h3>
+        <p className="text-xs text-slate-400 mt-1">Initializing secure database & PIN protection...</p>
+      </div>
+    );
+  }
+
+  // PIN Lock Screen (if locked or first-time PIN setup)
+  if (!isUnlocked) {
+    return (
+      <PinLockScreen
+        userId={userId}
+        pinConfig={pinConfig}
+        onUnlocked={() => setIsUnlocked(true)}
+        onPinConfigUpdated={(newCfg) => setPinConfig(newCfg)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
@@ -430,10 +500,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Main App Bar */}
+      {/* Main App Bar with Lock Button & Cloud Indicator */}
       <Navbar
         activeCurrency={activeCurrency}
-        onCurrencyChange={setActiveCurrency}
+        onCurrencyChange={handleCurrencyChange}
         onOpenAddModal={() => {
           setEditingTransaction(null);
           setIsTxModalOpen(true);
@@ -442,12 +512,35 @@ export default function App() {
         onOpenBudgetsModal={() => setIsBudgetModalOpen(true)}
         onOpenRecurringModal={() => setIsRecurringModalOpen(true)}
         onExportCsv={handleExportCsv}
+        onLockApp={handleLockApp}
         selectedMonth={selectedMonth}
         onMonthChange={setSelectedMonth}
+        isCloudSynced={isCloudSynced}
       />
 
       {/* Main Content Dashboard */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Firebase Cloud Sync & PIN Protection Banner */}
+        <div className="px-4 py-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-emerald-300">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <Cloud className="w-4 h-4 text-emerald-400" />
+            <span className="font-semibold">Firebase Firestore Connected:</span>
+            <span className="text-emerald-200/80 hidden sm:inline">
+              Data is saved in Google Cloud Firestore instead of browser storage.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLockApp}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              PIN Protected (Lock)
+            </button>
+          </div>
+        </div>
+
         {/* 1. Core Balance & Inflow/Outflow Cards + Budget Warning Alerts */}
         <BalanceCards
           totalIncome={monthTotals.totalIncome}
@@ -507,16 +600,21 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950/80 py-6 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>
-            SpendWise • Personal Expense & Income Tracker
-          </p>
+          <p>SpendWise • Personal Expense & Income Tracker • Google Cloud Firebase</p>
           <div className="flex items-center gap-4">
+            <button
+              onClick={handleLockApp}
+              className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+            >
+              Lock App Now
+            </button>
+            <span>•</span>
             <button
               onClick={handleResetDemoData}
               className="flex items-center gap-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              Reset Demo Data
+              Reset Cloud Data
             </button>
           </div>
         </div>
