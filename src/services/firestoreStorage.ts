@@ -255,6 +255,7 @@ export const firestoreStorage = {
       type: loan.type,
       personName: loan.personName,
       amount: loan.amount,
+      paidAmount: loan.paidAmount || 0,
       currency: loan.currency,
       walletId: loan.walletId,
       date: loan.date,

@@ -61,14 +61,15 @@ export interface Loan {
   id: string;
   userId: string;
   type: LoanType;
-  personName: string;
+  personName: string; // person or institution
   amount: number;
+  paidAmount?: number; // for partial settlement tracking
   currency: CurrencyCode;
   walletId: string; // wallet from which given or to which received
   date: string; // YYYY-MM-DD
   dueDate?: string;
   notes?: string;
-  status: 'active' | 'settled';
+  status: 'active' | 'partial' | 'settled';
   settledDate?: string;
   createdAt: string;
 }

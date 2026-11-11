@@ -454,21 +454,52 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
     await firestoreStorage.saveLoan(userId, newLoan);
-    showToast(`Loan record for "${newLoan.personName}" saved in Cloud Firestore`);
+
+    // If lent (given), deduct from wallet balance. If borrowed (taken), add to wallet balance.
+    const wallet = wallets.find((w) => w.id === loanData.walletId);
+    if (wallet) {
+      const converted = convertCurrency(loanData.amount, loanData.currency, wallet.currency);
+      const newBal = loanData.type === 'given' ? wallet.balance - converted : wallet.balance + converted;
+      await firestoreStorage.updateWalletBalance(userId, wallet.id, newBal);
+    }
+
+    showToast(`Loan record for "${newLoan.personName}" saved & wallet updated!`);
   };
 
-  const handleSettleLoan = async (loanId: string) => {
+  const handleUpdateLoan = async (loan: Loan) => {
     if (!userId) return;
-    const loan = loans.find((l) => l.id === loanId);
-    if (loan) {
-      const updated: Loan = {
-        ...loan,
-        status: 'settled',
-        settledDate: new Date().toISOString().split('T')[0],
-      };
-      await firestoreStorage.saveLoan(userId, updated);
-      showToast(`Loan with "${updated.personName}" marked as settled!`);
+    await firestoreStorage.saveLoan(userId, loan);
+    showToast(`Loan record for "${loan.personName}" updated in Cloud Firestore`);
+  };
+
+  const handleSettleLoanPartial = async (loan: Loan, paidIncrement: number) => {
+    if (!userId) return;
+    const currentPaid = loan.paidAmount || 0;
+    const newPaid = currentPaid + paidIncrement;
+    const isFullyPaid = newPaid >= loan.amount;
+
+    const updated: Loan = {
+      ...loan,
+      paidAmount: Math.min(newPaid, loan.amount),
+      status: isFullyPaid ? 'settled' : 'partial',
+      settledDate: isFullyPaid ? new Date().toISOString().split('T')[0] : undefined,
+    };
+
+    await firestoreStorage.saveLoan(userId, updated);
+
+    // If lent (given) and getting paid back -> add to wallet. If borrowed (taken) and paying back -> deduct from wallet.
+    const wallet = wallets.find((w) => w.id === loan.walletId);
+    if (wallet) {
+      const converted = convertCurrency(paidIncrement, loan.currency, wallet.currency);
+      const newBal = loan.type === 'given' ? wallet.balance + converted : wallet.balance - converted;
+      await firestoreStorage.updateWalletBalance(userId, wallet.id, newBal);
     }
+
+    showToast(
+      isFullyPaid
+        ? `Loan with "${loan.personName}" fully settled & wallet updated!`
+        : `Recorded payment of ${paidIncrement} for "${loan.personName}" & wallet updated!`
+    );
   };
 
   const handleDeleteLoan = async (loanId: string) => {
@@ -770,7 +801,8 @@ export default function App() {
         wallets={wallets}
         currency={activeCurrency}
         onAddLoan={handleAddLoan}
-        onSettleLoan={handleSettleLoan}
+        onUpdateLoan={handleUpdateLoan}
+        onSettleLoanPartial={handleSettleLoanPartial}
         onDeleteLoan={handleDeleteLoan}
       />
     </div>
