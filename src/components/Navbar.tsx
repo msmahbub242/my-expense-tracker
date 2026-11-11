@@ -8,6 +8,7 @@ import {
   Repeat,
   Lock,
   Cloud,
+  Shield,
 } from 'lucide-react';
 import { CurrencyCode } from '../types/expense.ts';
 import { SUPPORTED_CURRENCIES } from '../utils/calculations.ts';
@@ -19,6 +20,7 @@ interface NavbarProps {
   onOpenCategoriesModal: () => void;
   onOpenBudgetsModal: () => void;
   onOpenRecurringModal: () => void;
+  onOpenSecurityModal: () => void;
   onExportCsv: () => void;
   onLockApp: () => void;
   selectedMonth: string;
@@ -33,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCategoriesModal,
   onOpenBudgetsModal,
   onOpenRecurringModal,
+  onOpenSecurityModal,
   onExportCsv,
   onLockApp,
   selectedMonth,
@@ -122,6 +125,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Export CSV</span>
             </button>
 
+            {/* Vault Security Settings CTA */}
+            <button
+              onClick={onOpenSecurityModal}
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Vault Security & PIN Settings"
+            >
+              <Shield className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">PIN Settings</span>
+            </button>
+
             {/* Lock App CTA */}
             <button
               onClick={onLockApp}
@@ -165,6 +178,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Repeat className="w-3 h-3 text-purple-400" />
             Recurring
+          </button>
+          <button
+            onClick={onOpenSecurityModal}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 text-emerald-300 border border-emerald-500/30 shrink-0 cursor-pointer"
+          >
+            <Shield className="w-3 h-3 text-emerald-400" />
+            PIN Settings
           </button>
           <button
             onClick={onLockApp}

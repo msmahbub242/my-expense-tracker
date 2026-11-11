@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Wallet as WalletIcon,
   Plus,
@@ -7,6 +7,8 @@ import {
   Building2,
   Banknote,
   CreditCard,
+  Edit2,
+  RotateCcw,
 } from 'lucide-react';
 import { Wallet, CurrencyCode } from '../types/expense.ts';
 import { formatCurrency, convertCurrency } from '../utils/calculations.ts';
@@ -16,6 +18,8 @@ interface WalletOverviewProps {
   activeCurrency: CurrencyCode;
   onOpenTransferModal: () => void;
   onOpenAddWalletModal: () => void;
+  onEditWallet: (wallet: Wallet) => void;
+  onResetAllWalletsToZero: () => void;
 }
 
 export const WalletOverview: React.FC<WalletOverviewProps> = ({
@@ -23,6 +27,8 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
   activeCurrency,
   onOpenTransferModal,
   onOpenAddWalletModal,
+  onEditWallet,
+  onResetAllWalletsToZero,
 }) => {
   const getWalletIcon = (type: Wallet['type']) => {
     switch (type) {
@@ -66,7 +72,15 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
             Real-time balance across Cash, Bank Accounts, and bKash / Nagad
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onResetAllWalletsToZero}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-850 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs font-semibold border border-amber-500/30 transition-colors cursor-pointer"
+            title="Reset all wallet balances to 0 BDT"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Zero All (0 ৳)
+          </button>
           <button
             onClick={onOpenTransferModal}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
@@ -88,7 +102,7 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
         {wallets.map((wallet) => (
           <div
             key={wallet.id}
-            className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:border-slate-600/80 transition-all flex flex-col justify-between"
+            className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:border-slate-600/80 transition-all flex flex-col justify-between group"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -113,6 +127,16 @@ export const WalletOverview: React.FC<WalletOverviewProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Edit Balance Button */}
+              <button
+                type="button"
+                onClick={() => onEditWallet(wallet)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/80 transition-all cursor-pointer"
+                title="Edit wallet / set balance"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-700/40 flex items-baseline justify-between">

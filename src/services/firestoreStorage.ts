@@ -6,6 +6,7 @@ import {
   onSnapshot,
   getDocs,
   writeBatch,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from './firebase.ts';
 import {
@@ -26,54 +27,95 @@ import {
 
 export const firestoreStorage = {
   /**
-   * Initializes user Firestore collections with default seed data if empty
+   * Initializes user Firestore collections with clean zero-balance wallets and categories
    */
   async initializeUserCollectionsIfEmpty(userId: string): Promise<void> {
     try {
-      const txCollectionRef = collection(db, 'users', userId, 'transactions');
-      const txSnapshot = await getDocs(txCollectionRef);
+      const walletsRef = collection(db, 'users', userId, 'wallets');
+      const walletsSnap = await getDocs(walletsRef);
 
-      if (txSnapshot.empty) {
+      if (walletsSnap.empty) {
         const batch = writeBatch(db);
 
-        // 1. Seed Categories
+        // 1. Categories
         for (const cat of INITIAL_CATEGORIES) {
           const catRef = doc(db, 'users', userId, 'categories', cat.id);
           batch.set(catRef, { ...cat, userId });
         }
 
-        // 2. Seed Wallets
+        // 2. Wallets (all start with 0 BDT)
         for (const wallet of INITIAL_WALLETS) {
           const wRef = doc(db, 'users', userId, 'wallets', wallet.id);
-          batch.set(wRef, { ...wallet, userId });
+          batch.set(wRef, { ...wallet, balance: 0, userId });
         }
 
-        // 3. Seed Budgets
+        // 3. Budgets
         for (const budget of INITIAL_BUDGETS) {
           const bRef = doc(db, 'users', userId, 'budgets', budget.id);
           batch.set(bRef, { ...budget, userId });
         }
 
-        // 4. Seed Recurring Rules
-        for (const rec of INITIAL_RECURRING) {
-          const rRef = doc(db, 'users', userId, 'recurring', rec.id);
-          batch.set(rRef, { ...rec, userId });
-        }
-
-        // 5. Seed Transactions
-        for (const tx of INITIAL_TRANSACTIONS) {
-          const tRef = doc(db, 'users', userId, 'transactions', tx.id);
-          batch.set(tRef, { ...tx, userId });
-        }
-
-        // 6. Seed Default Currency Preference
+        // 4. Default Currency Preference
         const prefRef = doc(db, 'users', userId, 'settings', 'preferences');
-        batch.set(prefRef, { activeCurrency: 'BDT', updatedAt: new Date().toISOString() });
+        batch.set(prefRef, {
+          activeCurrency: 'BDT',
+          zeroStartApplied: true,
+          updatedAt: new Date().toISOString(),
+        });
 
         await batch.commit();
+      } else {
+        // If collections already exist from prior demo run, ensure zero start has been applied
+        await this.ensureZeroStartState(userId);
       }
     } catch (error) {
       console.error('Error seeding initial Firestore data:', error);
+    }
+  },
+
+  /**
+   * Ensures that demo transactions are removed and wallets start at 0 BDT
+   */
+  async ensureZeroStartState(userId: string): Promise<void> {
+    try {
+      const prefRef = doc(db, 'users', userId, 'settings', 'preferences');
+      const prefSnap = await getDoc(prefRef);
+
+      if (!prefSnap.exists() || !prefSnap.data().zeroStartApplied) {
+        const batch = writeBatch(db);
+
+        // Reset all wallets to 0
+        const walletsSnap = await getDocs(collection(db, 'users', userId, 'wallets'));
+        walletsSnap.forEach((wDoc) => {
+          batch.update(wDoc.ref, { balance: 0 });
+        });
+
+        // Delete any seeded demo transactions (tx-01 to tx-09 or demo records)
+        const txSnap = await getDocs(collection(db, 'users', userId, 'transactions'));
+        txSnap.forEach((tDoc) => {
+          if (tDoc.id.startsWith('tx-0') || tDoc.id.startsWith('tx-1')) {
+            batch.delete(tDoc.ref);
+          }
+        });
+
+        // Delete demo recurring rules
+        const recSnap = await getDocs(collection(db, 'users', userId, 'recurring'));
+        recSnap.forEach((rDoc) => {
+          if (rDoc.id.startsWith('rec-rent') || rDoc.id.startsWith('rec-internet') || rDoc.id.startsWith('rec-salary')) {
+            batch.delete(rDoc.ref);
+          }
+        });
+
+        batch.set(
+          prefRef,
+          { zeroStartApplied: true, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn('ensureZeroStartState note:', err);
     }
   },
 
@@ -176,11 +218,46 @@ export const firestoreStorage = {
   },
 
   /**
-   * Save wallet in Firestore
+   * Save or update wallet in Firestore
    */
   async saveWallet(userId: string, wallet: Wallet): Promise<void> {
     const docRef = doc(db, 'users', userId, 'wallets', wallet.id);
     await setDoc(docRef, { ...wallet, userId });
+  },
+
+  /**
+   * Update a wallet's base balance in Firestore
+   */
+  async updateWalletBalance(userId: string, walletId: string, newBalance: number): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'wallets', walletId);
+    await setDoc(docRef, { balance: newBalance, userId }, { merge: true });
+  },
+
+  /**
+   * Set all wallet balances to zero and wipe all existing transactions
+   */
+  async resetAllWalletsToZero(userId: string): Promise<void> {
+    const walletsSnap = await getDocs(collection(db, 'users', userId, 'wallets'));
+    const txSnap = await getDocs(collection(db, 'users', userId, 'transactions'));
+    const batch = writeBatch(db);
+
+    walletsSnap.forEach((w) => {
+      batch.update(w.ref, { balance: 0 });
+    });
+
+    txSnap.forEach((t) => {
+      batch.delete(t.ref);
+    });
+
+    await batch.commit();
+  },
+
+  /**
+   * Delete a wallet from Firestore
+   */
+  async deleteWallet(userId: string, walletId: string): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'wallets', walletId);
+    await deleteDoc(docRef);
   },
 
   /**
@@ -216,11 +293,11 @@ export const firestoreStorage = {
    */
   async saveActiveCurrency(userId: string, currency: CurrencyCode): Promise<void> {
     const docRef = doc(db, 'users', userId, 'settings', 'preferences');
-    await setDoc(docRef, { activeCurrency: currency, updatedAt: new Date().toISOString() });
+    await setDoc(docRef, { activeCurrency: currency, updatedAt: new Date().toISOString() }, { merge: true });
   },
 
   /**
-   * Reset all user collections in Firestore back to defaults
+   * Reset all user collections in Firestore back to clean 0-balance defaults
    */
   async resetUserData(userId: string): Promise<void> {
     const subcollections = ['transactions', 'categories', 'wallets', 'budgets', 'recurring'];

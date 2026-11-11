@@ -95,6 +95,9 @@
         "pinHash": { "type": "string" },
         "pinLength": { "type": "number" },
         "salt": { "type": "string" },
+        "recoveryHash": { "type": "string" },
+        "recoverySalt": { "type": "string" },
+        "recoveryHint": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
       "required": ["pinHash", "pinLength"]

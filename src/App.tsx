@@ -41,8 +41,10 @@ import { CategoryModal } from './components/CategoryModal.tsx';
 import { RecurringModal } from './components/RecurringModal.tsx';
 import { WalletTransferModal } from './components/WalletTransferModal.tsx';
 import { AddWalletModal } from './components/AddWalletModal.tsx';
+import { EditWalletModal } from './components/EditWalletModal.tsx';
+import { SecuritySettingsModal } from './components/SecuritySettingsModal.tsx';
 import { PinLockScreen } from './components/PinLockScreen.tsx';
-import { CheckCircle2, RotateCcw, Cloud, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, RotateCcw, Cloud, ShieldCheck, Shield } from 'lucide-react';
 
 export default function App() {
   // 1. Firebase & PIN Security State
@@ -86,6 +88,8 @@ export default function App() {
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isAddWalletModalOpen, setIsAddWalletModalOpen] = useState(false);
+  const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
 
   // 5. Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -424,6 +428,26 @@ export default function App() {
     showToast(`Account "${newWallet.name}" created in Firebase`);
   };
 
+  const handleSaveWallet = async (updatedWallet: Wallet) => {
+    if (!userId) return;
+    await firestoreStorage.saveWallet(userId, updatedWallet);
+    showToast(`Saved balance for "${updatedWallet.name}" in Cloud Firestore`);
+  };
+
+  const handleDeleteWallet = async (walletId: string) => {
+    if (!userId) return;
+    await firestoreStorage.deleteWallet(userId, walletId);
+    showToast('Wallet removed from Cloud Firestore');
+  };
+
+  const handleResetAllWalletsToZero = async () => {
+    if (!userId) return;
+    if (confirm('Set all wallet balances to 0 BDT and clear transactions for a clean start?')) {
+      await firestoreStorage.resetAllWalletsToZero(userId);
+      showToast('All wallets reset to 0 BDT. You can now log your real transactions!');
+    }
+  };
+
   const handleCurrencyChange = async (code: CurrencyCode) => {
     setActiveCurrency(code);
     if (userId) {
@@ -511,6 +535,7 @@ export default function App() {
         onOpenCategoriesModal={() => setIsCategoryModalOpen(true)}
         onOpenBudgetsModal={() => setIsBudgetModalOpen(true)}
         onOpenRecurringModal={() => setIsRecurringModalOpen(true)}
+        onOpenSecurityModal={() => setIsSecurityModalOpen(true)}
         onExportCsv={handleExportCsv}
         onLockApp={handleLockApp}
         selectedMonth={selectedMonth}
@@ -525,18 +550,25 @@ export default function App() {
           <div className="flex items-center gap-2 text-emerald-300">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             <Cloud className="w-4 h-4 text-emerald-400" />
-            <span className="font-semibold">Firebase Firestore Connected:</span>
+            <span className="font-semibold">Personal Vault (owner_vault) Connected:</span>
             <span className="text-emerald-200/80 hidden sm:inline">
-              Data is saved in Google Cloud Firestore instead of browser storage.
+              Your data is securely stored in Google Cloud Firestore.
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleLockApp}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+              onClick={() => setIsSecurityModalOpen(true)}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1 cursor-pointer transition-colors"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              PIN Protected (Lock)
+              <Shield className="w-3.5 h-3.5" />
+              PIN Settings
+            </button>
+            <button
+              onClick={handleLockApp}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold border border-amber-500/30 flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+              Lock Vault
             </button>
           </div>
         </div>
@@ -560,6 +592,8 @@ export default function App() {
           activeCurrency={activeCurrency}
           onOpenTransferModal={() => setIsTransferModalOpen(true)}
           onOpenAddWalletModal={() => setIsAddWalletModalOpen(true)}
+          onEditWallet={(w) => setEditingWallet(w)}
+          onResetAllWalletsToZero={handleResetAllWalletsToZero}
         />
 
         {/* 3. Visual Charts: Spending by Category & Budget Guardrails */}
@@ -681,6 +715,23 @@ export default function App() {
         onClose={() => setIsAddWalletModalOpen(false)}
         currency={activeCurrency}
         onAddWallet={handleAddWallet}
+      />
+
+      <EditWalletModal
+        isOpen={editingWallet !== null}
+        onClose={() => setEditingWallet(null)}
+        wallet={editingWallet}
+        currency={activeCurrency}
+        onSave={handleSaveWallet}
+        onDelete={handleDeleteWallet}
+      />
+
+      <SecuritySettingsModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        userId={userId}
+        pinConfig={pinConfig}
+        onPinConfigUpdated={(newCfg) => setPinConfig(newCfg)}
       />
     </div>
   );

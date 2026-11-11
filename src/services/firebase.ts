@@ -10,18 +10,13 @@ export const db = firebaseConfig.firestoreDatabaseId
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
-const USER_ID_KEY = 'spendwise_firebase_user_uid_v1';
+export const OWNER_USER_ID = 'owner_vault';
 
 /**
- * Returns a persistent user ID for Firestore documents
+ * Returns the dedicated single-owner vault ID in Firestore
  */
 export function getOrCreateUserId(): string {
-  let uid = localStorage.getItem(USER_ID_KEY);
-  if (!uid || !uid.startsWith('usr_')) {
-    uid = 'usr_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
-    localStorage.setItem(USER_ID_KEY, uid);
-  }
-  return uid;
+  return OWNER_USER_ID;
 }
 
 /**
