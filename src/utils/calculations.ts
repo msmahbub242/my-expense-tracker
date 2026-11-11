@@ -8,6 +8,7 @@ import {
   BudgetStatus,
   MonthlySummary,
   RecurringRule,
+  Loan,
 } from '../types/expense.ts';
 
 export const SUPPORTED_CURRENCIES: Record<CurrencyCode, CurrencyConfig> = {
@@ -412,6 +413,7 @@ export function generateMonthlySummary(
   transactions: Transaction[],
   monthYear: string, // YYYY-MM
   categories: Category[],
+  loans: Loan[] = [],
   targetCurrency: CurrencyCode = 'BDT',
   rates: Record<CurrencyCode, CurrencyConfig> = SUPPORTED_CURRENCIES
 ): MonthlySummary {
@@ -423,6 +425,36 @@ export function generateMonthlySummary(
     ? { name: categoryExpenses[0].categoryName, amount: categoryExpenses[0].totalAmount }
     : undefined;
 
+  // Active loans calculation
+  let totalLent = 0;
+  let totalBorrowed = 0;
+  let activeCount = 0;
+
+  for (const loan of loans) {
+    if (loan.status !== 'settled') {
+      activeCount++;
+      const remaining = loan.amount - (loan.paidAmount || 0);
+      const converted = convertCurrency(remaining, loan.currency, targetCurrency, rates);
+      if (loan.type === 'given') {
+        totalLent += converted;
+      } else {
+        totalBorrowed += converted;
+      }
+    }
+  }
+
+  // Monthly loan repayment/collection from transactions in selected month
+  let monthlyRepaid = 0;
+  let monthlyCollected = 0;
+
+  for (const tx of monthTransactions) {
+    if (tx.notes?.includes('Loan Repayment') || tx.categoryId === 'cat-loan-repayment') {
+      monthlyRepaid += convertCurrency(tx.amount, tx.currency, targetCurrency, rates);
+    } else if (tx.notes?.includes('Loan Recovery') || tx.categoryId === 'cat-loan-collection') {
+      monthlyCollected += convertCurrency(tx.amount, tx.currency, targetCurrency, rates);
+    }
+  }
+
   return {
     monthYear,
     totalIncome: totals.totalIncome,
@@ -431,5 +463,13 @@ export function generateMonthlySummary(
     savingsRate: totals.savingsRate,
     transactionCount: monthTransactions.length,
     topSpendingCategory: topCategory,
+    loanSummary: {
+      totalLent: Math.round(totalLent * 100) / 100,
+      totalBorrowed: Math.round(totalBorrowed * 100) / 100,
+      netLoanPosition: Math.round((totalLent - totalBorrowed) * 100) / 100,
+      monthlyRepaid: Math.round(monthlyRepaid * 100) / 100,
+      monthlyCollected: Math.round(monthlyCollected * 100) / 100,
+      activeCount,
+    },
   };
 }

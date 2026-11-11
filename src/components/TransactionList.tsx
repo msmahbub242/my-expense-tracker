@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   SlidersHorizontal,
   FileSpreadsheet,
+  HandCoins,
 } from 'lucide-react';
 import {
   Transaction,
@@ -44,6 +45,7 @@ interface TransactionListProps {
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   monthlySummary: MonthlySummary;
+  onOpenLoanModal?: () => void;
 }
 
 export const TransactionList: React.FC<TransactionListProps> = ({
@@ -68,6 +70,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   onEditTransaction,
   onDeleteTransaction,
   monthlySummary,
+  onOpenLoanModal,
 }) => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
@@ -82,44 +85,88 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     startDate ||
     endDate;
 
+  const loanSum = monthlySummary.loanSummary;
+
   return (
     <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
       {/* 1. Monthly Text Summary Banner */}
-      <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-            Monthly Summary Overview ({monthlySummary.monthYear})
-          </span>
-          <p className="text-xs text-slate-300 mt-1">
-            Logged <span className="font-bold text-white">{monthlySummary.transactionCount} transactions</span> this month.
-            {monthlySummary.topSpendingCategory && (
-              <>
-                {' '}
-                Top expenditure was in{' '}
-                <span className="font-semibold text-amber-300">
-                  {monthlySummary.topSpendingCategory.name} (
-                  {formatCurrency(monthlySummary.topSpendingCategory.amount, currency)})
-                </span>
-                .
-              </>
-            )}
-          </p>
+      <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+              Monthly Summary Overview ({monthlySummary.monthYear})
+            </span>
+            <p className="text-xs text-slate-300 mt-1">
+              Logged <span className="font-bold text-white">{monthlySummary.transactionCount} transactions</span> this month.
+              {monthlySummary.topSpendingCategory && (
+                <>
+                  {' '}
+                  Top expenditure was in{' '}
+                  <span className="font-semibold text-amber-300">
+                    {monthlySummary.topSpendingCategory.name} (
+                    {formatCurrency(monthlySummary.topSpendingCategory.amount, currency)})
+                  </span>
+                  .
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80">
+              <span className="text-slate-400">Total Outflow:</span>{' '}
+              <span className="font-bold text-rose-400">
+                {formatCurrency(monthlySummary.totalExpense, currency)}
+              </span>
+            </div>
+            <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80">
+              <span className="text-slate-400">Net Saved:</span>{' '}
+              <span className="font-bold text-emerald-400">
+                {formatCurrency(monthlySummary.netSavings, currency)} ({monthlySummary.savingsRate}%)
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80">
-            <span className="text-slate-400">Total Outflow:</span>{' '}
-            <span className="font-bold text-rose-400">
-              {formatCurrency(monthlySummary.totalExpense, currency)}
-            </span>
+        {/* Loan Activity Sub-Summary */}
+        {loanSum && (
+          <div className="pt-2.5 border-t border-slate-700/50 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-purple-300 font-semibold">
+                <HandCoins className="w-4 h-4 text-purple-400" />
+                <span>Loans Overview (ঋণ দেন-পাওনা):</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                  Lent (পাবো): <strong className="font-bold">{formatCurrency(loanSum.totalLent, currency)}</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-300">
+                  Borrowed (দেবো): <strong className="font-bold">{formatCurrency(loanSum.totalBorrowed, currency)}</strong>
+                </span>
+                {loanSum.monthlyRepaid > 0 && (
+                  <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                    Repaid This Month: {formatCurrency(loanSum.monthlyRepaid, currency)}
+                  </span>
+                )}
+                {loanSum.monthlyCollected > 0 && (
+                  <span className="px-2 py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-teal-300">
+                    Recovered This Month: {formatCurrency(loanSum.monthlyCollected, currency)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {onOpenLoanModal && (
+              <button
+                onClick={onOpenLoanModal}
+                className="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <HandCoins className="w-3.5 h-3.5" />
+                Manage Loans (ঋণ সূচি)
+              </button>
+            )}
           </div>
-          <div className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80">
-            <span className="text-slate-400">Net Saved:</span>{' '}
-            <span className="font-bold text-emerald-400">
-              {formatCurrency(monthlySummary.netSavings, currency)} ({monthlySummary.savingsRate}%)
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 2. Search & Filter Bar */}

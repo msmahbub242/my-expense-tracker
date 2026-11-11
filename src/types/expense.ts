@@ -103,6 +103,15 @@ export interface BudgetStatus {
   color: string;
 }
 
+export interface LoanSummary {
+  totalLent: number;
+  totalBorrowed: number;
+  netLoanPosition: number;
+  monthlyRepaid: number;
+  monthlyCollected: number;
+  activeCount: number;
+}
+
 export interface MonthlySummary {
   monthYear: string;
   totalIncome: number;
@@ -114,4 +123,5 @@ export interface MonthlySummary {
     name: string;
     amount: number;
   };
+  loanSummary?: LoanSummary;
 }

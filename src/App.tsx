@@ -221,8 +221,8 @@ export default function App() {
 
   // Monthly summary insights
   const monthlySummary = useMemo(() => {
-    return generateMonthlySummary(transactions, selectedMonth, categories, activeCurrency);
-  }, [transactions, selectedMonth, categories, activeCurrency]);
+    return generateMonthlySummary(transactions, selectedMonth, categories, loans, activeCurrency);
+  }, [transactions, selectedMonth, categories, loans, activeCurrency]);
 
   // Check how many recurring rules are due
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -455,15 +455,28 @@ export default function App() {
     };
     await firestoreStorage.saveLoan(userId, newLoan);
 
-    // If lent (given), deduct from wallet balance. If borrowed (taken), add to wallet balance.
-    const wallet = wallets.find((w) => w.id === loanData.walletId);
-    if (wallet) {
-      const converted = convertCurrency(loanData.amount, loanData.currency, wallet.currency);
-      const newBal = loanData.type === 'given' ? wallet.balance - converted : wallet.balance + converted;
-      await firestoreStorage.updateWalletBalance(userId, wallet.id, newBal);
-    }
+    // Create automatic Transaction in ledger
+    // Loan given = expense (money paid out to borrower)
+    // Loan taken = income (money received from lender)
+    const isGiven = loanData.type === 'given';
+    const txType: TransactionType = isGiven ? 'expense' : 'income';
+    const catId = isGiven ? 'cat-loan-repayment' : 'cat-loan-collection';
+    const notePrefix = isGiven ? 'Loan Given (ঋণ প্রদান)' : 'Loan Borrowed (ঋণ গ্রহণ)';
 
-    showToast(`Loan record for "${newLoan.personName}" saved & wallet updated!`);
+    const loanTx: Transaction = {
+      id: `tx-loan-${Date.now()}`,
+      type: txType,
+      amount: loanData.amount,
+      currency: loanData.currency,
+      categoryId: catId,
+      walletId: loanData.walletId,
+      date: loanData.date || todayStr,
+      notes: `${notePrefix}: ${loanData.personName}`,
+      createdAt: new Date().toISOString(),
+    };
+    await firestoreStorage.saveTransaction(userId, loanTx);
+
+    showToast(`Loan record for "${newLoan.personName}" saved & transaction logged!`);
   };
 
   const handleUpdateLoan = async (loan: Loan) => {
@@ -477,28 +490,44 @@ export default function App() {
     const currentPaid = loan.paidAmount || 0;
     const newPaid = currentPaid + paidIncrement;
     const isFullyPaid = newPaid >= loan.amount;
+    const today = new Date().toISOString().split('T')[0];
 
     const updated: Loan = {
       ...loan,
       paidAmount: Math.min(newPaid, loan.amount),
       status: isFullyPaid ? 'settled' : 'partial',
-      settledDate: isFullyPaid ? new Date().toISOString().split('T')[0] : undefined,
+      settledDate: isFullyPaid ? today : undefined,
     };
 
     await firestoreStorage.saveLoan(userId, updated);
 
-    // If lent (given) and getting paid back -> add to wallet. If borrowed (taken) and paying back -> deduct from wallet.
-    const wallet = wallets.find((w) => w.id === loan.walletId);
-    if (wallet) {
-      const converted = convertCurrency(paidIncrement, loan.currency, wallet.currency);
-      const newBal = loan.type === 'given' ? wallet.balance + converted : wallet.balance - converted;
-      await firestoreStorage.updateWalletBalance(userId, wallet.id, newBal);
-    }
+    // Create settlement transaction in ledger:
+    // If loan is 'taken' (I owe money) and I repay it -> EXPENSE (loan porisod!)
+    // If loan is 'given' (money owed to me) and I get it back -> INCOME (loan recovery!)
+    const isTakenLoan = loan.type === 'taken';
+    const txType: TransactionType = isTakenLoan ? 'expense' : 'income';
+    const catId = isTakenLoan ? 'cat-loan-repayment' : 'cat-loan-collection';
+    const notePrefix = isTakenLoan ? 'Loan Repayment (ঋণ পরিশোধ)' : 'Loan Recovery (ঋণ ফেরৎ)';
+
+    const settleTx: Transaction = {
+      id: `tx-settle-${Date.now()}`,
+      type: txType,
+      amount: paidIncrement,
+      currency: loan.currency,
+      categoryId: loan.walletId ? loan.walletId : 'w-cash',
+      walletId: loan.walletId,
+      date: today,
+      notes: `${notePrefix}: ${loan.personName} (${isFullyPaid ? 'Fully Settled' : 'Partial Payment'})`,
+      createdAt: new Date().toISOString(),
+    };
+    settleTx.categoryId = catId;
+
+    await firestoreStorage.saveTransaction(userId, settleTx);
 
     showToast(
       isFullyPaid
-        ? `Loan with "${loan.personName}" fully settled & wallet updated!`
-        : `Recorded payment of ${paidIncrement} for "${loan.personName}" & wallet updated!`
+        ? `Loan with "${loan.personName}" fully settled & logged as ${isTakenLoan ? 'Expense' : 'Income'}!`
+        : `Recorded payment of ${paidIncrement} for "${loan.personName}" as ${isTakenLoan ? 'Expense' : 'Income'}!`
     );
   };
 
@@ -644,6 +673,8 @@ export default function App() {
           onOpenBudgetsModal={() => setIsBudgetModalOpen(true)}
           salaryIncome={incomeBreakdown.salary}
           casualIncome={incomeBreakdown.casual}
+          loanSummary={monthlySummary.loanSummary}
+          onOpenLoanModal={() => setIsLoanModalOpen(true)}
         />
 
         {/* 2. Multiple Wallets Overview (Cash, Bank, bKash/Nagad) */}
@@ -688,6 +719,7 @@ export default function App() {
           onEditTransaction={handleEditTransaction}
           onDeleteTransaction={handleDeleteTransaction}
           monthlySummary={monthlySummary}
+          onOpenLoanModal={() => setIsLoanModalOpen(true)}
         />
       </main>
 

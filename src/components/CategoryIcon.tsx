@@ -21,6 +21,8 @@ import {
   Gift,
   Tag,
   CircleDollarSign,
+  HandCoins,
+  Coins,
   LucideProps,
 } from 'lucide-react';
 
@@ -66,6 +68,14 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({ name, ...props }) =>
     case 'investments':
     case 'profit':
       return <TrendingUp {...props} />;
+    case 'handcoins':
+    case 'loan-repayment':
+    case 'loan':
+      return <HandCoins {...props} />;
+    case 'coins':
+    case 'loan-collection':
+    case 'recovery':
+      return <Coins {...props} />;
     case 'wallet':
     case 'cash':
       return <Wallet {...props} />;

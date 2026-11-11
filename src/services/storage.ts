@@ -23,8 +23,10 @@ export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat-medical', name: 'Medical & Healthcare', icon: 'HeartPulse', color: '#ec4899', type: 'expense' },
   { id: 'cat-shopping', name: 'Shopping & Groceries', icon: 'ShoppingBag', color: '#8b5cf6', type: 'expense' },
   { id: 'cat-transport', name: 'Transport & Commute', icon: 'Car', color: '#06b6d4', type: 'expense' },
+  { id: 'cat-loan-repayment', name: 'Loan Repayment (ঋণ পরিশোধ)', icon: 'HandCoins', color: '#f43f5e', type: 'expense' },
   { id: 'cat-salary', name: 'Monthly Salary', icon: 'Briefcase', color: '#10b981', type: 'income' },
   { id: 'cat-casual-income', name: 'Casual / Freelance', icon: 'Laptop', color: '#14b8a6', type: 'income' },
+  { id: 'cat-loan-collection', name: 'Loan Recovery (ঋণ পাওয়ার ফেরৎ)', icon: 'Coins', color: '#0ea5e9', type: 'income' },
   { id: 'cat-investments', name: 'Investments & Returns', icon: 'TrendingUp', color: '#6366f1', type: 'income' },
 ];
 

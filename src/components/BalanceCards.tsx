@@ -6,8 +6,10 @@ import {
   AlertTriangle,
   AlertOctagon,
   Percent,
+  HandCoins,
+  ArrowRightLeft,
 } from 'lucide-react';
-import { CurrencyCode, BudgetStatus } from '../types/expense.ts';
+import { CurrencyCode, BudgetStatus, LoanSummary } from '../types/expense.ts';
 import { formatCurrency } from '../utils/calculations.ts';
 
 interface BalanceCardsProps {
@@ -20,6 +22,8 @@ interface BalanceCardsProps {
   onOpenBudgetsModal: () => void;
   casualIncome: number;
   salaryIncome: number;
+  loanSummary?: LoanSummary;
+  onOpenLoanModal?: () => void;
 }
 
 export const BalanceCards: React.FC<BalanceCardsProps> = ({
@@ -32,6 +36,8 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
   onOpenBudgetsModal,
   casualIncome,
   salaryIncome,
+  loanSummary,
+  onOpenLoanModal,
 }) => {
   const warnings = budgetStatuses.filter((b) => b.status === 'warning');
   const exceeded = budgetStatuses.filter((b) => b.status === 'exceeded');
@@ -101,9 +107,9 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
       )}
 
       {/* Main Metric Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Net Balance / Savings */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-all" />
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -114,7 +120,7 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
             </div>
           </div>
           <div className="mt-3">
-            <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${netSavings >= 0 ? 'text-white' : 'text-rose-400'}`}>
+            <div className={`text-2xl font-extrabold tracking-tight ${netSavings >= 0 ? 'text-white' : 'text-rose-400'}`}>
               {formatCurrency(netSavings, currency)}
             </div>
             <div className="mt-2 flex items-center gap-2">
@@ -126,13 +132,12 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
                 <Percent className="w-3 h-3" />
                 {savingsRate}% Savings Rate
               </span>
-              <span className="text-xs text-slate-400">Income minus Expenses</span>
             </div>
           </div>
         </div>
 
         {/* Total Monthly Income */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 rounded-full blur-2xl group-hover:bg-teal-500/10 transition-all" />
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -143,23 +148,23 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-extrabold text-teal-300 tracking-tight">
+            <div className="text-2xl font-extrabold text-teal-300 tracking-tight">
               {formatCurrency(totalIncome, currency)}
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
               <span className="text-slate-300">
                 Salary: {formatCurrency(salaryIncome, currency)}
               </span>
               <span>•</span>
               <span className="text-slate-300">
-                Casual/Gigs: {formatCurrency(casualIncome, currency)}
+                Casual: {formatCurrency(casualIncome, currency)}
               </span>
             </div>
           </div>
         </div>
 
         {/* Total Monthly Expense */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition-all" />
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -170,14 +175,53 @@ export const BalanceCards: React.FC<BalanceCardsProps> = ({
             </div>
           </div>
           <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-extrabold text-rose-400 tracking-tight">
+            <div className="text-2xl font-extrabold text-rose-400 tracking-tight">
               {formatCurrency(totalExpense, currency)}
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-              <span>{budgetStatuses.length} budgeted categories</span>
+              <span>{budgetStatuses.length} budgets</span>
               <span className={exceeded.length > 0 ? 'text-rose-400 font-medium' : 'text-slate-400'}>
                 {exceeded.length} over limit
               </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Loan Overview Card */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition-all flex flex-col justify-between">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition-all" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-purple-400">
+              Loan Status (ঋণ স্থিতি)
+            </span>
+            <button
+              onClick={onOpenLoanModal}
+              className="p-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-colors cursor-pointer"
+              title="Manage Loans"
+            >
+              <HandCoins className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-baseline justify-between">
+              <div className="text-2xl font-extrabold text-purple-300 tracking-tight">
+                {formatCurrency(loanSummary?.netLoanPosition || 0, currency)}
+              </div>
+              <span className="text-[10px] font-semibold text-purple-400/80 uppercase">Net Loan</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-1 text-[11px]">
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-md p-1 px-1.5 text-center">
+                <span className="text-slate-400 block text-[9px]">Lent (পাবো)</span>
+                <span className="font-bold text-emerald-400">
+                  {formatCurrency(loanSummary?.totalLent || 0, currency)}
+                </span>
+              </div>
+              <div className="bg-rose-500/10 border border-rose-500/20 rounded-md p-1 px-1.5 text-center">
+                <span className="text-slate-400 block text-[9px]">Borrowed (দেবো)</span>
+                <span className="font-bold text-rose-400">
+                  {formatCurrency(loanSummary?.totalBorrowed || 0, currency)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
